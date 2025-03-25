@@ -14,6 +14,12 @@ function Home() {
         <li className='LinkItem'>
           <a href="https://play.google.com/store/apps/details?id=com.matchdiary.origin&hl=ko" target="_blank">▶️ 플레이 스토어</a>
         </li>
+        <li className='LinkItem'>
+          <a href="https://www.instagram.com/match_diary_official/" target="_blank">📷 공식 인스타</a>
+        </li>
+        <li className='LinkItem'>
+          <a href="https://7l1do9o9tw0.typeform.com/to/ZjFUd41l" target="_blank">❓ 문의 타입폼</a>
+        </li>
       </ul>
       <p className='PrivacyLink'><a href="/privacy">개인정보 처리방침</a></p>
     </div>
