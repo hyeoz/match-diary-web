@@ -2,6 +2,7 @@ import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 
 import logo from "./assets/logo_moving.gif";
 import Privacy from "./pages/Privacy";
+import Maps from "./pages/Maps";
 import "./App.css";
 
 function Home() {
@@ -56,6 +57,7 @@ function App() {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/privacy" element={<Privacy />} />
+          <Route path="/maps" element={<Maps />} />
         </Routes>
       </div>
     </Router>
