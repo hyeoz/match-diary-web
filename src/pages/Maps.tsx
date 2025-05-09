@@ -60,6 +60,9 @@ declare global {
         };
       };
     };
+    ReactNativeWebView: {
+      postMessage: (message: string) => void;
+    };
   }
 }
 
@@ -147,7 +150,9 @@ const Maps = () => {
   );
 
   const initializeMap = useCallback(() => {
-    if (window.naver && window.naver.maps && !mapInitialized) {
+    // window.ReactNativeWebView.postMessage("지도 초기화 시작");
+
+    if (!mapInitialized) {
       const mapOptions: NaverMapOptions = {
         center: new window.naver.maps.LatLng(37.5666805, 126.9784147), // 서울 시청
         zoom: 15,
@@ -156,8 +161,8 @@ const Maps = () => {
           position: window.naver.maps.Position.TOP_RIGHT,
         },
       };
-
       const map = new window.naver.maps.Map("map", mapOptions);
+      // window.ReactNativeWebView.postMessage("지도 초기화 성공");
       setMapInstance(map);
       setMapInitialized(true);
     }
@@ -166,40 +171,48 @@ const Maps = () => {
   useEffect(() => {
     const handleMessage = async (event: MessageEvent) => {
       try {
+        await loadNaverMapsScript(); // ✅ 여기가 핵심
+        initializeMap();
         const data = JSON.parse(event.data);
         if (data.userId) {
-          initializeMap();
           await fetchUserRecordsAndStadiums(data.userId);
         }
       } catch (error) {
-        console.error("Error parsing message:", error);
+        console.error("Error parsing message or loading map:", error);
+        window.ReactNativeWebView.postMessage("지도 초기화 실패: " + error);
       }
     };
 
-    const loadNaverMapsScript = () => {
+    window.addEventListener("message", handleMessage);
+
+    return () => {
+      window.removeEventListener("message", handleMessage);
+    };
+  }, [fetchUserRecordsAndStadiums, initializeMap]);
+
+  const loadNaverMapsScript = () => {
+    return new Promise<void>((resolve, reject) => {
       const script = document.createElement("script");
       script.src = `https://openapi.map.naver.com/openapi/v3/maps.js?ncpClientId=${
         import.meta.env.VITE_NAVER_MAP_CLIENT_ID
       }`;
       script.async = true;
+      script.onload = () => resolve();
+      script.onerror = () => reject(new Error("Naver Maps script load error"));
       document.head.appendChild(script);
-      return script;
-    };
-
-    window.addEventListener("message", handleMessage);
-    const script = loadNaverMapsScript();
-
-    return () => {
-      window.removeEventListener("message", handleMessage);
-      if (script.parentNode) {
-        script.parentNode.removeChild(script);
-      }
-    };
-  }, [fetchUserRecordsAndStadiums, initializeMap]);
+    });
+  };
 
   return (
     <div style={{ width: "100%", height: "100vh" }}>
-      <div id="map" style={{ width: "100%", height: "100%" }}></div>
+      <div
+        id="map"
+        style={{
+          width: "100%",
+          height: "calc(100% - 80px)",
+          backgroundColor: "grey",
+        }}
+      ></div>
     </div>
   );
 };
