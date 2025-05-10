@@ -60,7 +60,7 @@ declare global {
         };
       };
     };
-    ReactNativeWebView: {
+    ReactNativeWebView?: {
       postMessage: (message: string) => void;
     };
   }
@@ -97,6 +97,21 @@ const Maps = () => {
     setMarkers([]);
   }, [markers]);
 
+  // 웹뷰 로깅 유틸리티 함수
+  const logToApp = (message: string, data?: any) => {
+    if (window.ReactNativeWebView) {
+      window.ReactNativeWebView.postMessage(
+        JSON.stringify({
+          type: "LOG",
+          message,
+          data,
+          timestamp: new Date().toISOString(),
+        })
+      );
+    }
+    console.log(message, data); // 브라우저 콘솔에도 로깅
+  };
+
   const fetchUserRecordsAndStadiums = useCallback(
     async (userId: string) => {
       try {
@@ -121,6 +136,7 @@ const Maps = () => {
             const userStadiums = stadiumsResponse.data.filter((stadium) => {
               return uniqueStadiumIds.includes(stadium.stadium_id);
             });
+            logToApp("User stadiums", userStadiums);
             clearMarkers();
             // 마커 생성
             const newMarkers = userStadiums
@@ -142,6 +158,7 @@ const Maps = () => {
         }
       } catch (error) {
         console.error("Error fetching data:", error);
+        logToApp("Error fetching data", error);
       }
     },
     [clearMarkers, createMarker, mapInstance, setMarkers]
