@@ -104,26 +104,24 @@ const Maps = () => {
         const recordsResponse = await API.post<RecordType[]>("/user-records", {
           userId,
         });
-
         if (recordsResponse.data) {
           // 중복 없는 경기장 ID 추출
           const uniqueStadiumIds = [
             ...new Set(
               recordsResponse.data.map(
-                (record: RecordType) => record.records_id
+                (record: RecordType) => record.stadium_id
               )
             ),
           ];
 
           // 경기장 정보 가져오기
-          const stadiumsResponse = await API.get("/stadiums");
+          const stadiumsResponse = await API.get<Stadium[]>("/stadiums");
           if (stadiumsResponse.data) {
             // 사용자가 방문한 경기장만 필터링
-            const userStadiums = (stadiumsResponse.data as Stadium[]).filter(
-              (stadium) => uniqueStadiumIds.includes(stadium.stadium_id)
-            );
+            const userStadiums = stadiumsResponse.data.filter((stadium) => {
+              return uniqueStadiumIds.includes(stadium.stadium_id);
+            });
             clearMarkers();
-
             // 마커 생성
             const newMarkers = userStadiums
               .map((stadium) => createMarker(stadium))
@@ -150,8 +148,6 @@ const Maps = () => {
   );
 
   const initializeMap = useCallback(() => {
-    // window.ReactNativeWebView.postMessage("지도 초기화 시작");
-
     if (!mapInitialized) {
       const mapOptions: NaverMapOptions = {
         center: new window.naver.maps.LatLng(37.5666805, 126.9784147), // 서울 시청
@@ -162,7 +158,6 @@ const Maps = () => {
         },
       };
       const map = new window.naver.maps.Map("map", mapOptions);
-      // window.ReactNativeWebView.postMessage("지도 초기화 성공");
       setMapInstance(map);
       setMapInitialized(true);
     }
@@ -171,15 +166,18 @@ const Maps = () => {
   useEffect(() => {
     const handleMessage = async (event: MessageEvent) => {
       try {
-        await loadNaverMapsScript(); // ✅ 여기가 핵심
-        initializeMap();
         const data = JSON.parse(event.data);
         if (data.userId) {
+          await loadNaverMapsScript(); // ✅ 여기가 핵심
+          initializeMap();
           await fetchUserRecordsAndStadiums(data.userId);
         }
+        // NOTE 테스트용
+        // await loadNaverMapsScript(); // ✅ 여기가 핵심
+        // initializeMap();
+        // await fetchUserRecordsAndStadiums(import.meta.env.VITE_TEST_USER_ID);
       } catch (error) {
         console.error("Error parsing message or loading map:", error);
-        window.ReactNativeWebView.postMessage("지도 초기화 실패: " + error);
       }
     };
 
