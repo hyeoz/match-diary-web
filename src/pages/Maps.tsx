@@ -1,5 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
+
 import { API } from "../api";
+import marker from "../assets/map_marker.png";
 
 interface NaverMap {
   setCenter(latlng: NaverLatLng): void;
@@ -13,6 +15,13 @@ interface NaverMarkerOptions {
   position: NaverLatLng;
   map: NaverMap;
   title?: string;
+  icon?: {
+    url: string;
+    size: NaverSize;
+    scaledSize: NaverSize;
+    origin: NaverPoint;
+    anchor: NaverPoint;
+  };
 }
 
 interface NaverMapOptions {
@@ -48,6 +57,16 @@ interface Stadium {
   longitude: number;
 }
 
+interface NaverSize {
+  width: number;
+  height: number;
+}
+
+interface NaverPoint {
+  x: number;
+  y: number;
+}
+
 declare global {
   interface Window {
     naver: {
@@ -55,6 +74,8 @@ declare global {
         Map: new (elementId: string, options: NaverMapOptions) => NaverMap;
         LatLng: new (lat: number, lng: number) => NaverLatLng;
         Marker: new (options: NaverMarkerOptions) => NaverMarker;
+        Size: new (width: number, height: number) => NaverSize;
+        Point: new (x: number, y: number) => NaverPoint;
         Position: {
           TOP_RIGHT: number;
         };
@@ -71,6 +92,21 @@ const Maps = () => {
   const [mapInitialized, setMapInitialized] = useState<boolean>(false);
   const [markers, setMarkers] = useState<NaverMarker[]>([]);
 
+  // 웹뷰 로깅 유틸리티 함수
+  const logToApp = useCallback((message: string, data?: unknown) => {
+    if (window.ReactNativeWebView) {
+      window.ReactNativeWebView.postMessage(
+        JSON.stringify({
+          type: "LOG",
+          message,
+          data,
+          timestamp: new Date().toISOString(),
+        })
+      );
+    }
+    console.log(message, data); // 브라우저 콘솔에도 로깅
+  }, []);
+
   const createMarker = useCallback(
     (stadium: Stadium): NaverMarker | null => {
       if (!mapInstance) return null;
@@ -83,34 +119,27 @@ const Maps = () => {
           ),
           map: mapInstance,
           title: stadium.stadium_short_name,
+          icon: {
+            url: marker,
+            size: new window.naver.maps.Size(42, 52),
+            scaledSize: new window.naver.maps.Size(42, 52),
+            origin: new window.naver.maps.Point(0, 0),
+            anchor: new window.naver.maps.Point(21, 30),
+          },
         });
       } catch (error) {
         console.error("Error creating marker:", error);
+        logToApp("Error creating marker", error);
         return null;
       }
     },
-    [mapInstance]
+    [mapInstance, logToApp]
   );
 
   const clearMarkers = useCallback(() => {
     markers.forEach((marker) => marker.setMap(null));
     setMarkers([]);
   }, [markers]);
-
-  // 웹뷰 로깅 유틸리티 함수
-  const logToApp = (message: string, data?: any) => {
-    if (window.ReactNativeWebView) {
-      window.ReactNativeWebView.postMessage(
-        JSON.stringify({
-          type: "LOG",
-          message,
-          data,
-          timestamp: new Date().toISOString(),
-        })
-      );
-    }
-    console.log(message, data); // 브라우저 콘솔에도 로깅
-  };
 
   const fetchUserRecordsAndStadiums = useCallback(
     async (userId: string) => {
