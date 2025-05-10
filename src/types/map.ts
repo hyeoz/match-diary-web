@@ -2,6 +2,28 @@ export type NaverMap = {
   setCenter(latlng: NaverLatLng): void;
 };
 
+export type NaverMapsEvent = {
+  trigger(target: NaverMap | NaverMarker, eventName: string): void;
+};
+
+declare global {
+  interface Window {
+    naver: {
+      maps: {
+        Map: new (elementId: string, options: NaverMapOptions) => NaverMap;
+        LatLng: new (lat: number, lng: number) => NaverLatLng;
+        Marker: new (options: NaverMarkerOptions) => NaverMarker;
+        Size: new (width: number, height: number) => NaverSize;
+        Point: new (x: number, y: number) => NaverPoint;
+        Event: NaverMapsEvent;
+        Position: {
+          TOP_RIGHT: number;
+        };
+      };
+    };
+  }
+}
+
 export type NaverMarker = {
   setMap(map: NaverMap | null): void;
 };

@@ -12,6 +12,7 @@ import {
   NaverPoint,
   Stadium,
   RecordType,
+  NaverMapsEvent,
 } from "../types/map";
 
 const DEFAULT_LATITUDE = 37.5666805;
@@ -26,6 +27,7 @@ declare global {
         Marker: new (options: NaverMarkerOptions) => NaverMarker;
         Size: new (width: number, height: number) => NaverSize;
         Point: new (x: number, y: number) => NaverPoint;
+        Event: NaverMapsEvent;
         Position: {
           TOP_RIGHT: number;
         };
@@ -190,7 +192,10 @@ const Maps = () => {
         import.meta.env.VITE_NAVER_MAP_CLIENT_ID
       }`;
       script.async = true;
-      script.onload = () => resolve();
+      script.onload = () => {
+        console.log("[SCRIPT] Naver Maps script loaded");
+        resolve();
+      };
       script.onerror = () => reject(new Error("Naver Maps script load error"));
       document.head.appendChild(script);
     });
@@ -201,40 +206,57 @@ const Maps = () => {
       try {
         const data = JSON.parse(event.data);
         logToApp("Received message", data);
+        
         if (data.userId) {
-          await loadNaverMapsScript(); //
-          initializeMap();
-          await fetchUserRecordsAndStadiums(data.userId);
+          try {
+            await loadNaverMapsScript();
+            // DOM이 완전히 준비된 후 지도 초기화
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            initializeMap();
+            await fetchUserRecordsAndStadiums(data.userId);
+            
+            // 지도 리사이즈 이벤트 트리거
+            if (mapInstance) {
+              window.naver.maps.Event.trigger(mapInstance, 'resize');
+            }
+          } catch (error) {
+            logToApp("Error initializing map", error);
+            console.error("Error initializing map:", error);
+          }
         }
       } catch (error) {
-        console.error("Error parsing message or loading map:", error);
-        logToApp("Error parsing message or loading map", error);
+        console.error("Error parsing message:", error);
+        logToApp("Error parsing message", error);
       }
-      // NOTE test
-      // await loadNaverMapsScript();
-      // initializeMap();
-      // await fetchUserRecordsAndStadiums(import.meta.env.VITE_TEST_USER_ID);
     };
 
     window.addEventListener("message", handleMessage);
-
     return () => window.removeEventListener("message", handleMessage);
-  }, []);
+  }, [fetchUserRecordsAndStadiums, initializeMap, loadNaverMapsScript, mapInstance]);
 
   useEffect(() => {
     if (userStadiums.length > 0) {
       updateMapMarkers();
     }
-  }, [userStadiums]);
+  }, [userStadiums, updateMapMarkers, logToApp]);
 
   return (
-    <div style={{ width: "100%", height: "100vh" }}>
+    <div style={{
+      width: "100vw",
+      height: "100vh",
+      position: "fixed",
+      top: 0,
+      left: 0,
+      overflow: "hidden"
+    }}>
       <div
         id="map"
         style={{
-          width: "100vh",
-          height: "100vh",
+          width: "100%",
+          height: "100%",
           backgroundColor: "grey",
+          position: "absolute"
         }}
       ></div>
     </div>
