@@ -165,13 +165,13 @@ const Maps = () => {
             const userStadiums = stadiumsResponse.data.filter((stadium) => {
               return uniqueStadiumIds.includes(stadium.stadium_id);
             });
-            logToApp("User stadiums", userStadiums);
             clearMarkers();
             // 마커 생성
             const newMarkers = userStadiums
               .map((stadium) => createMarker(stadium))
               .filter((marker): marker is NaverMarker => marker !== null);
             setMarkers(newMarkers);
+            logToApp("newMarkers", newMarkers);
 
             // 첫 번째 경기장으로 지도 중심 이동
             if (userStadiums.length > 0 && mapInstance) {
