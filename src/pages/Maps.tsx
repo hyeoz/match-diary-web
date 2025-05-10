@@ -104,7 +104,7 @@ const Maps = () => {
         })
       );
     }
-    console.log(message, data); // 브라우저 콘솔에도 로깅
+    // console.log(message, data); // 브라우저 콘솔에도 로깅
   }, []);
 
   const createMarker = useCallback(
@@ -152,19 +152,26 @@ const Maps = () => {
           // 중복 없는 경기장 ID 추출
           const uniqueStadiumIds = [
             ...new Set(
-              recordsResponse.data.map(
-                (record: RecordType) => record.stadium_id
-              )
+              recordsResponse.data
+                .filter(
+                  (record): record is RecordType =>
+                    record.stadium_id !== undefined
+                )
+                .map((record) => record.stadium_id)
             ),
           ];
+
+          logToApp("Unique stadium IDs", uniqueStadiumIds);
 
           // 경기장 정보 가져오기
           const stadiumsResponse = await API.get<Stadium[]>("/stadiums");
           if (stadiumsResponse.data) {
             // 사용자가 방문한 경기장만 필터링
-            const userStadiums = stadiumsResponse.data.filter((stadium) => {
-              return uniqueStadiumIds.includes(stadium.stadium_id);
-            });
+            const userStadiums = stadiumsResponse.data.filter(
+              (stadium): stadium is Stadium => {
+                return uniqueStadiumIds.includes(stadium.stadium_id);
+              }
+            );
             clearMarkers();
             // 마커 생성
             const newMarkers = userStadiums
@@ -190,7 +197,7 @@ const Maps = () => {
         logToApp("Error fetching data", error);
       }
     },
-    [clearMarkers, createMarker, mapInstance, setMarkers]
+    [clearMarkers, createMarker, mapInstance, logToApp, setMarkers]
   );
 
   const initializeMap = useCallback(() => {
