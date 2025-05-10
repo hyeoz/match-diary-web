@@ -219,7 +219,7 @@ const Maps = () => {
     window.addEventListener("message", handleMessage);
 
     return () => window.removeEventListener("message", handleMessage);
-  }, [loadNaverMapsScript, fetchUserRecordsAndStadiums, initializeMap]);
+  }, []);
 
   useEffect(() => {
     if (userStadiums.length > 0) {
