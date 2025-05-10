@@ -14,6 +14,9 @@ import {
   RecordType,
 } from "../types/map";
 
+const DEFAULT_LATITUDE = 37.5666805;
+const DEFAULT_LONGITUDE = 126.9784147;
+
 declare global {
   interface Window {
     naver: {
@@ -37,8 +40,6 @@ declare global {
 const Maps = () => {
   const [mapInstance, setMapInstance] = useState<NaverMap | null>(null);
   const [mapInitialized, setMapInitialized] = useState<boolean>(false);
-  const [markers, setMarkers] = useState<NaverMarker[]>([]);
-  // const [stadiumIds, setStadiumIds] = useState<number[]>([]);
   const [userStadiums, setUserStadiums] = useState<Stadium[]>([]);
 
   // 웹뷰 로깅 유틸리티 함수
@@ -53,7 +54,6 @@ const Maps = () => {
         })
       );
     }
-    // console.log(message, data); // 브라우저 콘솔에도 로깅
   }, []);
 
   const createMarker = useCallback(
@@ -86,9 +86,16 @@ const Maps = () => {
   );
 
   const clearMarkers = useCallback(() => {
-    markers.forEach((marker) => marker.setMap(null));
-    setMarkers([]);
-  }, [markers]);
+    if (!mapInstance) return;
+
+    return new window.naver.maps.Marker({
+      position: new window.naver.maps.LatLng(
+        DEFAULT_LATITUDE,
+        DEFAULT_LONGITUDE
+      ),
+      map: mapInstance,
+    });
+  }, [mapInstance]);
 
   // 경기장 ID만 가져오는 함수
   const fetchUserRecordsAndStadiums = useCallback(
@@ -145,7 +152,6 @@ const Maps = () => {
       .map((stadium) => createMarker(stadium))
       .filter((marker): marker is NaverMarker => marker !== null);
 
-    setMarkers(newMarkers);
     logToApp("newMarkers", newMarkers);
 
     // 첫 번째 경기장으로 지도 중심 이동
@@ -161,7 +167,10 @@ const Maps = () => {
   const initializeMap = useCallback(() => {
     if (!mapInitialized) {
       const mapOptions: NaverMapOptions = {
-        center: new window.naver.maps.LatLng(37.5666805, 126.9784147), // 서울 시청
+        center: new window.naver.maps.LatLng(
+          DEFAULT_LATITUDE,
+          DEFAULT_LONGITUDE
+        ), // 서울 시청
         zoom: 15,
         zoomControl: true,
         zoomControlOptions: {
@@ -174,33 +183,7 @@ const Maps = () => {
     }
   }, [mapInitialized, setMapInstance, setMapInitialized]);
 
-  useEffect(() => {
-    const handleMessage = async (event: MessageEvent) => {
-      try {
-        const data = JSON.parse(event.data);
-        if (data.userId) {
-          await loadNaverMapsScript(); //
-          initializeMap();
-          await fetchUserRecordsAndStadiums(data.userId);
-        }
-      } catch (error) {
-        console.error("Error parsing message or loading map:", error);
-      }
-    };
-
-    if (window.ReactNativeWebView) {
-      window.addEventListener("message", handleMessage);
-      return () => window.removeEventListener("message", handleMessage);
-    }
-  }, [fetchUserRecordsAndStadiums, initializeMap]);
-
-  useEffect(() => {
-    if (userStadiums.length > 0) {
-      updateMapMarkers();
-    }
-  }, [userStadiums]);
-
-  const loadNaverMapsScript = () => {
+  const loadNaverMapsScript = useCallback(() => {
     return new Promise<void>((resolve, reject) => {
       const script = document.createElement("script");
       script.src = `https://openapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=${
@@ -211,7 +194,37 @@ const Maps = () => {
       script.onerror = () => reject(new Error("Naver Maps script load error"));
       document.head.appendChild(script);
     });
-  };
+  }, []);
+
+  useEffect(() => {
+    const handleMessage = async (event: MessageEvent) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.userId) {
+          await loadNaverMapsScript(); //
+          initializeMap();
+          await fetchUserRecordsAndStadiums(data.userId);
+        } else {
+          // NOTE test
+          await loadNaverMapsScript();
+          initializeMap();
+          await fetchUserRecordsAndStadiums(import.meta.env.VITE_TEST_USER_ID);
+        }
+      } catch (error) {
+        console.error("Error parsing message or loading map:", error);
+      }
+    };
+
+    window.addEventListener("message", handleMessage);
+
+    return () => window.removeEventListener("message", handleMessage);
+  }, [loadNaverMapsScript, fetchUserRecordsAndStadiums, initializeMap]);
+
+  useEffect(() => {
+    if (userStadiums.length > 0) {
+      updateMapMarkers();
+    }
+  }, [userStadiums]);
 
   return (
     <div style={{ width: "100%", height: "100vh" }}>
@@ -219,7 +232,7 @@ const Maps = () => {
         id="map"
         style={{
           width: "100%",
-          height: "calc(100% - 80px)",
+          height: "100%",
           backgroundColor: "grey",
         }}
       ></div>
