@@ -200,19 +200,20 @@ const Maps = () => {
     const handleMessage = async (event: MessageEvent) => {
       try {
         const data = JSON.parse(event.data);
+        logToApp("Received message", data);
         if (data.userId) {
           await loadNaverMapsScript(); //
           initializeMap();
           await fetchUserRecordsAndStadiums(data.userId);
-        } else {
-          // NOTE test
-          await loadNaverMapsScript();
-          initializeMap();
-          await fetchUserRecordsAndStadiums(import.meta.env.VITE_TEST_USER_ID);
         }
       } catch (error) {
         console.error("Error parsing message or loading map:", error);
+        logToApp("Error parsing message or loading map", error);
       }
+      // NOTE test
+      // await loadNaverMapsScript();
+      // initializeMap();
+      // await fetchUserRecordsAndStadiums(import.meta.env.VITE_TEST_USER_ID);
     };
 
     window.addEventListener("message", handleMessage);
