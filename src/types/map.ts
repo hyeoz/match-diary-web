@@ -1,5 +1,27 @@
 export type NaverMap = {
   setCenter(latlng: NaverLatLng): void;
+  setZoom(level: number): void;
+  fitBounds(bounds: NaverLatLngBounds): void;
+};
+
+export type NaverLatLngBounds = {
+  extend(latlng: NaverLatLng): void;
+};
+
+export type NaverMapsStatic = {
+  Map: new (elementId: string, options: NaverMapOptions) => NaverMap;
+  LatLng: new (lat: number, lng: number) => NaverLatLng;
+  LatLngBounds: new () => NaverLatLngBounds;
+  Marker: new (options: NaverMarkerOptions) => NaverMarker;
+  Size: new (width: number, height: number) => NaverSize;
+  Point: new (x: number, y: number) => NaverPoint;
+  Event: NaverMapsEvent;
+  Position: {
+    TOP_RIGHT: number;
+  };
+  Animation: {
+    DROP: number;
+  };
 };
 
 export type NaverMapsEvent = {
@@ -9,17 +31,10 @@ export type NaverMapsEvent = {
 declare global {
   interface Window {
     naver: {
-      maps: {
-        Map: new (elementId: string, options: NaverMapOptions) => NaverMap;
-        LatLng: new (lat: number, lng: number) => NaverLatLng;
-        Marker: new (options: NaverMarkerOptions) => NaverMarker;
-        Size: new (width: number, height: number) => NaverSize;
-        Point: new (x: number, y: number) => NaverPoint;
-        Event: NaverMapsEvent;
-        Position: {
-          TOP_RIGHT: number;
-        };
-      };
+      maps: NaverMapsStatic;
+    };
+    ReactNativeWebView?: {
+      postMessage: (message: string) => void;
     };
   }
 }
@@ -32,12 +47,15 @@ export type NaverMarkerOptions = {
   position: NaverLatLng;
   map: NaverMap;
   title?: string;
+  animation?: number;
+  clickable?: boolean;
   icon?: {
-    url: string;
-    size: NaverSize;
-    scaledSize: NaverSize;
-    origin: NaverPoint;
-    anchor: NaverPoint;
+    content?: string;
+    url?: string;
+    size?: NaverSize;
+    scaledSize?: NaverSize;
+    origin?: NaverPoint;
+    anchor?: NaverPoint;
   };
 };
 
@@ -48,6 +66,9 @@ export type NaverMapOptions = {
   zoomControlOptions: {
     position: number;
   };
+  scaleControl?: boolean;
+  logoControl?: boolean;
+  mapDataControl?: boolean;
 };
 
 export type NaverLatLng = {

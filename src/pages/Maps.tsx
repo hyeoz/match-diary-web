@@ -1,18 +1,13 @@
 import { useEffect, useState, useCallback } from "react";
 
 import { API } from "../api";
-import marker from "../assets/map_marker.png";
 import {
   NaverMap,
   NaverMarker,
-  NaverMarkerOptions,
-  NaverLatLng,
   NaverMapOptions,
-  NaverSize,
-  NaverPoint,
+  NaverMapsStatic,
   Stadium,
   RecordType,
-  NaverMapsEvent,
 } from "../types/map";
 
 const DEFAULT_LATITUDE = 37.5666805;
@@ -21,17 +16,7 @@ const DEFAULT_LONGITUDE = 126.9784147;
 declare global {
   interface Window {
     naver: {
-      maps: {
-        Map: new (elementId: string, options: NaverMapOptions) => NaverMap;
-        LatLng: new (lat: number, lng: number) => NaverLatLng;
-        Marker: new (options: NaverMarkerOptions) => NaverMarker;
-        Size: new (width: number, height: number) => NaverSize;
-        Point: new (x: number, y: number) => NaverPoint;
-        Event: NaverMapsEvent;
-        Position: {
-          TOP_RIGHT: number;
-        };
-      };
+      maps: NaverMapsStatic;
     };
     ReactNativeWebView?: {
       postMessage: (message: string) => void;
@@ -42,7 +27,6 @@ declare global {
 const Maps = () => {
   const [mapInstance, setMapInstance] = useState<NaverMap | null>(null);
   const [mapInitialized, setMapInitialized] = useState<boolean>(false);
-  const [userStadiums, setUserStadiums] = useState<Stadium[]>([]);
 
   // 웹뷰 로깅 유틸리티 함수
   const logToApp = useCallback((message: string, data?: unknown) => {
@@ -59,49 +43,54 @@ const Maps = () => {
   }, []);
 
   const createMarker = useCallback(
-    (stadium: Stadium): NaverMarker | null => {
-      if (!mapInstance) return null;
-
+    (stadium: Stadium, mapInstance: NaverMap) => {
+      const position = new window.naver.maps.LatLng(
+        stadium.latitude,
+        stadium.longitude
+      );
       try {
-        return new window.naver.maps.Marker({
-          position: new window.naver.maps.LatLng(
-            stadium.latitude,
-            stadium.longitude
-          ),
+        new window.naver.maps.Marker({
+          position,
           map: mapInstance,
-          title: stadium.stadium_short_name,
+          title: stadium.stadium_name,
+          animation: window.naver.maps.Animation.DROP,
+          clickable: true,
           icon: {
-            url: marker,
+            url: "/src/assets/map_marker.png",
             size: new window.naver.maps.Size(42, 52),
             scaledSize: new window.naver.maps.Size(42, 52),
             origin: new window.naver.maps.Point(0, 0),
             anchor: new window.naver.maps.Point(21, 30),
           },
         });
-      } catch (error) {
-        console.error("Error creating marker:", error);
-        logToApp("Error creating marker", error);
+      } catch (e) {
+        logToApp("Error creating marker", e);
         return null;
       }
     },
-    [mapInstance, logToApp]
+    []
   );
 
-  const clearMarkers = useCallback(() => {
-    if (!mapInstance) return;
+  const [markers, setMarkers] = useState<NaverMarker[]>([]);
 
-    return new window.naver.maps.Marker({
-      position: new window.naver.maps.LatLng(
-        DEFAULT_LATITUDE,
-        DEFAULT_LONGITUDE
-      ),
-      map: mapInstance,
+  const clearMarkers = useCallback(() => {
+    // 기존 마커들 제거
+    markers.forEach((marker) => {
+      marker.setMap(null);
     });
-  }, [mapInstance]);
+    setMarkers([]);
+  }, [markers]);
+
+  // 새로운 마커 저장
+  const addMarker = useCallback((marker: NaverMarker) => {
+    setMarkers((prev) => [...prev, marker]);
+  }, []);
 
   // 경기장 ID만 가져오는 함수
   const fetchUserRecordsAndStadiums = useCallback(
-    async (userId: string) => {
+    async (userId: string, mapInstance: NaverMap) => {
+      logToApp("start fetchUserRecordsAndStadiums");
+
       try {
         // 사용자의 기록 가져오기
         const recordsResponse = await API.post<RecordType[]>("/user-records", {
@@ -132,11 +121,20 @@ const Maps = () => {
                 return uniqueStadiumIds.includes(stadium.stadium_id);
               }
             );
-            setUserStadiums(filteredStadiums);
+
+            logToApp("Update map markers");
+            updateMapMarkers(filteredStadiums, mapInstance);
+            setTimeout(() => {
+              mapInstance.setCenter(
+                new window.naver.maps.LatLng(
+                  filteredStadiums[0].latitude,
+                  filteredStadiums[0].longitude
+                )
+              );
+            }, 1000);
           }
         }
       } catch (error) {
-        console.error("Error fetching data:", error);
         logToApp("Error fetching data", error);
       }
     },
@@ -144,46 +142,89 @@ const Maps = () => {
   );
 
   // 마커 생성과 지도 위치 변경을 처리하는 함수
-  const updateMapMarkers = useCallback(() => {
-    if (!mapInstance || userStadiums.length === 0) return;
+  const updateMapMarkers = useCallback(
+    (userStadiums: Stadium[], mapInstance: NaverMap) => {
+      if (!mapInstance) {
+        logToApp("No map instance");
+        return;
+      }
+      if (userStadiums.length === 0) {
+        logToApp("No stadiums");
+        return;
+      }
 
-    clearMarkers();
+      logToApp("Clear markers", userStadiums);
+      clearMarkers();
 
-    // 마커 생성
-    const newMarkers = userStadiums
-      .map((stadium) => createMarker(stadium))
-      .filter((marker): marker is NaverMarker => marker !== null);
+      // 새로운 마커 생성
+      const newMarkers = userStadiums.map((stadium) => {
+        const marker = createMarker(stadium, mapInstance);
 
-    logToApp("newMarkers", newMarkers);
+        logToApp("Created marker", marker);
 
-    // 첫 번째 경기장으로 지도 중심 이동
-    const firstStadium = userStadiums[0];
-    mapInstance.setCenter(
-      new window.naver.maps.LatLng(
-        firstStadium.latitude,
-        firstStadium.longitude
-      )
-    );
-  }, [clearMarkers, createMarker, mapInstance, userStadiums, logToApp]);
+        if (marker) {
+          addMarker(marker);
+        }
+
+        return marker;
+      });
+
+      logToApp("Created markers count:", newMarkers);
+
+      // 모든 마커를 포함하는 경계 계산(최초에 모든 경기장이 나올 수 있도록)
+      const bounds = new window.naver.maps.LatLngBounds();
+      userStadiums.forEach((stadium) => {
+        bounds.extend(
+          new window.naver.maps.LatLng(stadium.latitude, stadium.longitude)
+        );
+      });
+
+      // 지도 중심과 줌 레벨 조정
+      requestAnimationFrame(() => {
+        mapInstance.fitBounds(bounds);
+        // 단일 마커인 경우 적절한 줌 레벨 설정
+        if (userStadiums.length === 1) {
+          mapInstance.setZoom(15);
+        }
+      });
+    },
+    [createMarker, addMarker]
+  );
 
   const initializeMap = useCallback(() => {
-    if (!mapInitialized) {
+    if (mapInitialized || !window.naver?.maps) return null;
+
+    const mapDiv = document.getElementById("map");
+
+    if (!mapDiv) {
+      logToApp("Map container not found");
+      return null;
+    }
+
+    try {
       const mapOptions: NaverMapOptions = {
         center: new window.naver.maps.LatLng(
           DEFAULT_LATITUDE,
           DEFAULT_LONGITUDE
-        ), // 서울 시청
+        ),
         zoom: 15,
         zoomControl: true,
         zoomControlOptions: {
           position: window.naver.maps.Position.TOP_RIGHT,
         },
+        scaleControl: false,
       };
+
       const map = new window.naver.maps.Map("map", mapOptions);
       setMapInstance(map);
       setMapInitialized(true);
+      return map;
+    } catch (error) {
+      console.error("Error in map initialization:", error);
+      logToApp("Error in map initialization", error);
+      return null;
     }
-  }, [mapInitialized, setMapInstance, setMapInitialized]);
+  }, [mapInitialized, setMapInstance, setMapInitialized, logToApp]);
 
   const loadNaverMapsScript = useCallback(() => {
     return new Promise<void>((resolve, reject) => {
@@ -205,26 +246,35 @@ const Maps = () => {
     const handleMessage = async (event: MessageEvent) => {
       try {
         const data = JSON.parse(event.data);
-        logToApp("Received message", data);
-        
+
         if (data.userId) {
           try {
             await loadNaverMapsScript();
-            // DOM이 완전히 준비된 후 지도 초기화
-            await new Promise(resolve => setTimeout(resolve, 500));
-            
-            initializeMap();
-            await fetchUserRecordsAndStadiums(data.userId);
-            
-            // 지도 리사이즈 이벤트 트리거
-            if (mapInstance) {
-              window.naver.maps.Event.trigger(mapInstance, 'resize');
+            const map = initializeMap();
+            logToApp("userId", data.userId);
+
+            if (map) {
+              // 지도가 준비되면 데이터 로드
+              await fetchUserRecordsAndStadiums(data.userId, map);
             }
           } catch (error) {
             logToApp("Error initializing map", error);
             console.error("Error initializing map:", error);
           }
         }
+        /* 
+        // NOTE TEST
+        await loadNaverMapsScript();
+        const map = initializeMap();
+
+        if (map) {
+          // 지도가 준비되면 데이터 로드
+          await fetchUserRecordsAndStadiums(
+            import.meta.env.VITE_TEST_USER_ID,
+            map
+          );
+          }
+        */
       } catch (error) {
         console.error("Error parsing message:", error);
         logToApp("Error parsing message", error);
@@ -233,30 +283,49 @@ const Maps = () => {
 
     window.addEventListener("message", handleMessage);
     return () => window.removeEventListener("message", handleMessage);
-  }, [fetchUserRecordsAndStadiums, initializeMap, loadNaverMapsScript, mapInstance]);
+  }, [
+    initializeMap,
+    fetchUserRecordsAndStadiums,
+    mapInstance,
+    loadNaverMapsScript,
+    logToApp,
+  ]);
 
   useEffect(() => {
-    if (userStadiums.length > 0) {
-      updateMapMarkers();
-    }
-  }, [userStadiums, updateMapMarkers, logToApp]);
+    if (!mapInstance) return;
+
+    const handleResize = () => {
+      window.naver.maps.Event.trigger(mapInstance, "resize");
+    };
+
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, [mapInstance]);
 
   return (
-    <div style={{
-      width: "100vw",
-      height: "100vh",
-      position: "fixed",
-      top: 0,
-      left: 0,
-      overflow: "hidden"
-    }}>
+    <div
+      className="map-container"
+      style={{
+        width: "100%",
+        height: "100%",
+        position: "fixed",
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        zIndex: 1,
+      }}
+    >
       <div
         id="map"
         style={{
           width: "100%",
           height: "100%",
-          backgroundColor: "grey",
-          position: "absolute"
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
         }}
       ></div>
     </div>
