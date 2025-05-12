@@ -56,7 +56,7 @@ const Maps = () => {
           animation: window.naver.maps.Animation.DROP,
           clickable: true,
           icon: {
-            url: "/src/assets/map_marker.png",
+            url: "/map_marker.png",
             size: new window.naver.maps.Size(42, 52),
             scaledSize: new window.naver.maps.Size(42, 52),
             origin: new window.naver.maps.Point(0, 0),
